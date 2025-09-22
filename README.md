@@ -46,8 +46,8 @@ mealie-mealplan-rules/
 
 3. Configure environment or constants in `main.py`:
 
-   * `API_URL` — your Mealie instance’s API base URL.
-   * `API_TOKEN` — your Mealie API token with sufficient permission.
+   * `MEALIE_SERVER` — your Mealie instance’s API base URL.
+   * `MEALIE_TOKEN` — your Mealie API token with sufficient permission.
 
 ---
 
