@@ -3,6 +3,7 @@
 
 import os
 import requests
+import classifications
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,15 +15,6 @@ MEALIE_URL = os.getenv("MEALIE_SERVER") + "/api"
 MEALIE_TOKEN = os.getenv("MEALIE_TOKEN")  # create this in Mealie settings
 
 headers = {"Authorization": f"Bearer {MEALIE_TOKEN}"}
-
-# All possible categories
-CUISINES = [
-    "Indian", "Italian", "Chinese", "Mexican", "French",
-    "Japanese", "Greek", "American", "Middle Eastern", "Filipino"
-]
-CARBS = ["Rice", "Pasta", "Bread", "Potatoes", "Couscous", "Quinoa"]
-PROTEINS = ["Chicken", "Beef", "Pork", "Lamb", "Fish", "Tofu", "Lentils", "Beans"]
-MEALTIME = ["Breakfast", "Lunch", "Dinner", "Side", "Dessert", "Snack"]
 
 def create_tag(name: str):
     url = f"{MEALIE_URL}/organizers/tags"
@@ -36,9 +28,12 @@ def create_tag(name: str):
         print(f"❌ Failed to create tag {name}: {response.text}")
 
 def main():
-    all_tags = CUISINES + CARBS + PROTEINS + MEALTIME
+    all_tags = (classifications.CUISINES + classifications.CARBS +
+                classifications.PROTEINS + classifications.MEALTIME)
+
     for tag in all_tags:
-        create_tag(tag)
+        if tag != "None":
+            create_tag(tag)
 
 if __name__ == "__main__":
     main()

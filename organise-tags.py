@@ -2,6 +2,7 @@ import os
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
+import classifications
 
 # ==============================
 # CONFIGURATION
@@ -23,19 +24,14 @@ OPENAI_MODEL = "gpt-4o-mini"
 client = OpenAI(api_key=OPENAI_API_KEY)
 headers = {"Authorization": f"Bearer {MEALIE_TOKEN}"}
 
-# Fixed taxonomy for consistency
-CUISINES = ["Indian", "Italian", "Chinese", "Mexican", "French", "Japanese", "Greek", "American", "Middle Eastern", "Filipino", "British"]
-CARBS = ["Rice", "Pasta", "Bread", "Potatoes", "Couscous", "Quinoa", "None"]
-PROTEINS = ["Chicken", "Beef", "Pork", "Lamb", "Fish", "Tofu", "Lentils", "Beans", "None"]
-MEALTIME = ["Breakfast", "Lunch", "Dinner", "Side", "Dessert", "Snack", "None"]
 
 PROMPT_SYSTEM = f"""
 You are a recipe classifier. 
 Given a recipe's name, ingredients, and instructions, classify it into:
-- Cuisine: one of {CUISINES}
-- Main carb: one of {CARBS}
-- Main protein: one of {PROTEINS}
-- Meal time: one of {MEALTIME}
+- Cuisine: one of {classifications.CUISINES}
+- Main carb: one of {classifications.CARBS}
+- Main protein: one of {classifications.PROTEINS}
+- Meal time: one of {classifications.MEALTIME}
 
 Always return JSON in this format:
 {{
