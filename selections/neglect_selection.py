@@ -1,7 +1,11 @@
 import random
 import requests
+import logging
+
 from datetime import datetime, timedelta, timezone
 from .selection_strategy import SelectionStrategy
+
+logger = logging.getLogger(__name__)
 
 class NeglectSelection(SelectionStrategy):
     """
@@ -78,7 +82,7 @@ class NeglectSelection(SelectionStrategy):
         neglect_fraction = neglect_count / planned_count
         weight = 1.0 - neglect_fraction * (1.0 - self.min_weight)
 
-        print(f"Calculated weight for {recipe['name']}: planned: {planned_count}, made: {made_count}, neglect: {neglect_count} weight:{max(weight, self.min_weight)}")
+        logger.debug(f"Calculated weight for {recipe['name']}: planned: {planned_count}, made: {made_count}, neglect: {neglect_count} weight:{max(weight, self.min_weight)}")
 
         return max(weight, self.min_weight)
 

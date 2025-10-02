@@ -1,12 +1,23 @@
 import os
 import requests
 import datetime
+import logging
 
 from dotenv import load_dotenv
 from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule
 from selections import RandomSelection, NeglectSelection, SelectionStrategy
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+logging.getLogger("rules").setLevel(os.getenv("LOG_LEVEL"),)
+logging.getLogger("selections").setLevel(os.getenv("LOG_LEVEL"))
 
 API_URL = os.getenv("MEALIE_SERVER") + "/api"
 API_TOKEN =  os.getenv("MEALIE_TOKEN")
@@ -93,9 +104,9 @@ def generate_meal_plan(recipes, days=7, rules=None, meal_types=None,
             flat_tags = [d["name"] for d in recipe.get("tags", [])]
 
             if relaxed:
-                print(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)} (relaxed rules: {relaxed})")
+                logger.info(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)} (relaxed rules: {relaxed})")
             else:
-                print(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)}")
+                logger.info(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)}")
 
     return plan
 
@@ -108,7 +119,7 @@ def push_meal_plan(plan):
         }
         resp = requests.post(f"{API_URL}/meal-plans/", headers=headers, json=payload)
         if resp.status_code not in (200, 201):
-            print("Failed:", resp.text)
+            logger.info("Failed:", resp.text)
 
 
 # -------------------------------
@@ -117,7 +128,7 @@ def push_meal_plan(plan):
 
 def main():
     recipes = fetch_recipes()
-    print(f"Fetched {len(recipes)} recipes")
+    logger.info(f"Fetched {len(recipes)} recipes")
 
     rules = [
         # Hard rules
@@ -136,10 +147,10 @@ def main():
 
     plan = generate_meal_plan(recipes, days=7, rules=rules, meal_types=["dinner"],
                               selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN))
-    print("I would push here but i'm testing.")
-    print(plan)
+    # logger.info("I would push here but i'm testing."))
+    logger.info(plan)
     # push_meal_plan(plan)
-    print("Meal plan created.")
+    logger.info("Meal plan created.")
 
 if __name__ == "__main__":
     main()

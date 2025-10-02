@@ -1,4 +1,9 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
 class Rule:
+
     def __init__(self, hard=False, priority=5, name=None):
         """
         :param hard: True if this rule can never be broken
@@ -18,9 +23,9 @@ class Rule:
         after_names = [r.get("name") for r in after]
         removed = set(before) - set(after_names)
         if removed:
-            print(f"[{self.name}] removed recipes: {removed}")
+            logger.debug(f"[{self.name}] removed recipes: {removed}")
         else:
-            print(f"[{self.name}] no recipes removed")
+            logger.debug(f"[{self.name}] no recipes removed")
 
         return after
 
