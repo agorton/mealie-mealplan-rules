@@ -1,10 +1,10 @@
 import os
 import requests
-import random
 import datetime
 
 from dotenv import load_dotenv
-from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, NeglectRule
+from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule
+from selections import RandomSelection, NeglectSelection, SelectionStrategy
 
 load_dotenv()
 
@@ -64,7 +64,8 @@ def fetch_recipes():
     return recipes
 
 
-def generate_meal_plan(recipes, days=7, rules=None, meal_types=None):
+def generate_meal_plan(recipes, days=7, rules=None, meal_types=None,
+                       selection_strategy:SelectionStrategy=RandomSelection):
     if meal_types is None:
         meal_types = ["breakfast", "lunch", "dinner"]
 
@@ -78,7 +79,7 @@ def generate_meal_plan(recipes, days=7, rules=None, meal_types=None):
 
         for meal_type in meal_types:
             candidates, relaxed = apply_rules_with_backoff(rules, plan, recipes, date, meal_type)
-            recipe = random.choice(candidates)
+            recipe = selection_strategy.select(candidates)
             plan.append({
                 "date": date.isoformat(),
                 "entryType": "recipe",
@@ -125,23 +126,16 @@ def main():
         ExcludeTag("side", hard=True, priority=2, name="No Sides"),
 
         # Soft rules with priorities
-
-        NeglectRule(
-            api_url=API_URL,
-            api_token=API_TOKEN,
-            lookback_weeks=8,
-            min_weight=0.2,
-            hard=False,
-            priority=2
-        ),
         RecentlyMadeRule(),
         NoDuplicatesWithinDays(7, hard=False, priority=1, name="No Duplicates (7d)"),
-        MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week"),
+        MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week")
     ]
 
-    #  TODO: implement time rules... eg. we eat out on Wednesdays.
-    #  TODO: Expand to calendar parsed rules... eg. It looks like you will not be in for dinner on these days.
-    plan = generate_meal_plan(recipes, days=7, rules=rules, meal_types=["dinner"])
+    #  TODO: implement time-aware selection... eg. we eat out on Wednesdays.
+         #  TODO: Expand to calendar parsed rules... eg. It looks like you will not be in for dinner on these days.
+
+    plan = generate_meal_plan(recipes, days=7, rules=rules, meal_types=["dinner"],
+                              selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN))
     print("I would push here but i'm testing.")
     print(plan)
     # push_meal_plan(plan)
