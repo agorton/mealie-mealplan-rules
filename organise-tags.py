@@ -30,14 +30,14 @@ You are a recipe classifier.
 Given a recipe's name, ingredients, and instructions, classify it into:
 - Cuisine: one of {classifications.CUISINES}
 - Main carb: one of {classifications.CARBS}
-- Main protein: one of {classifications.PROTEINS}
+- Main protein: one or many of {classifications.PROTEINS}
 - Meal time: one of {classifications.MEALTIME}
 
 Always return JSON in this format:
 {{
   "cuisine": "...",
   "main_carb": "...",
-  "main_protein": "..."
+  "main_protein": ["..."]
   "meal_time": "..."
 }}
 """
@@ -64,7 +64,7 @@ def fetch_tags():
     return tags
 
 def fetch_recipes():
-    url = f"{MEALIE_URL}/recipes"
+    url = f"{MEALIE_URL}/recipes?perPage=100"
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()["items"]  # Mealie paginates results
@@ -120,6 +120,12 @@ def bulk_update_recipe_tags(recipe_slug, new_tag_names, tag_lookup):
     else:
         print(f"❌ Failed to update recipe '{recipe_slug}': {r.text}")
 
+def flatten(lst):
+    for item in lst:
+        if isinstance(item, list):
+            yield from flatten(item)
+        else:
+            yield item
 # ==============================
 # MAIN WORKFLOW
 # ==============================
@@ -138,7 +144,7 @@ def main():
         classification = classify_recipe(recipe)
         if classification:
             tags = [classification["cuisine"], classification["main_carb"],
-                    classification["main_protein"], classification["meal_time"]]
+                    *flatten(classification["main_protein"]), classification["meal_time"]]
             print(f"AI suggests tags: {tags}")
             bulk_update_recipe_tags(recipe["slug"], tags, tag_lookup)
         else:

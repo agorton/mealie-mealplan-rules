@@ -48,14 +48,17 @@ mealie-mealplan-rules/
 
    * `MEALIE_SERVER` — your Mealie instance’s API base URL.
    * `MEALIE_TOKEN` — your Mealie API token with sufficient permission.
+   * `OPENAI_API_KEY` — your OpenAPI token with sufficient permission.
 
+4. Run the `create-tags` / `organise-tags` scripts. These will use chatGPT to set the base set of tags on your recipes 
+so that you can apply the meal plan rules. 
 ---
 
 ## Usage
 
 ```bash
 cd path/to/mealie-mealplan-rules
-python main.py
+python meal-plan.py
 ```
 
 This will:
@@ -79,7 +82,7 @@ Example:
 ```python
 from rules.exclude_tag import ExcludeTag
 from rules.no_duplicates import NoDuplicatesWithinDays
-from rules.max_tag_per_week import MaxTagPerWeek
+from rules.max_tag import MaxTagPerWeek
 
 rules = [
     ExcludeTag("allergen-nuts", hard=True, name="No Nuts"),

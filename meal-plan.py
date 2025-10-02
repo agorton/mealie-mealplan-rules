@@ -4,7 +4,7 @@ import random
 import datetime
 
 from dotenv import load_dotenv
-from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays
+from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule
 
 load_dotenv()
 
@@ -89,13 +89,14 @@ def generate_meal_plan(recipes, days=7, rules=None, meal_types=None):
 
             # Logging
             recipe_name = recipe.get("name", recipe["id"])
+            flat_tags = [d["name"] for d in recipe.get("tags", [])]
+
             if relaxed:
-                print(f"{date} {meal_type}: picked '{recipe_name}' (relaxed rules: {relaxed})")
+                print(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)} (relaxed rules: {relaxed})")
             else:
-                print(f"{date} {meal_type}: picked '{recipe_name}'")
+                print(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)}")
 
     return plan
-
 
 def push_meal_plan(plan):
     for entry in plan:
@@ -120,9 +121,12 @@ def main():
     rules = [
         # Hard rules
         ExcludeTag("allergen-nuts", hard=True, name="No Nuts"),
+        ExcludeTag("dessert", hard=True, priority=2, name="No Dessert"),
+        ExcludeTag("side", hard=True, priority=2, name="No Sides"),
+
         # Soft rules with priorities
+        RecentlyMadeRule(),
         NoDuplicatesWithinDays(7, hard=False, priority=1, name="No Duplicates (7d)"),
-        ExcludeTag("dessert", hard=False, priority=2, name="No Dessert"),
         MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week"),
     ]
 
