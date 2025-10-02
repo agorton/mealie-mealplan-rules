@@ -5,5 +5,8 @@ class ExcludeTag(Rule):
         super().__init__(**kwargs)
         self.tag = tag
 
-    def apply(self, plan, candidates):
-        return [c for c in candidates if self.tag not in c.get("tags", [])]
+    def _apply(self, plan, candidates):
+        return [
+            c for c in candidates
+            if all(t.get("name") != self.tag for t in c.get("tags", []))
+        ]

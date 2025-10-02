@@ -4,7 +4,7 @@ import random
 import datetime
 
 from dotenv import load_dotenv
-from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule
+from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, NeglectRule
 
 load_dotenv()
 
@@ -125,11 +125,22 @@ def main():
         ExcludeTag("side", hard=True, priority=2, name="No Sides"),
 
         # Soft rules with priorities
+
+        NeglectRule(
+            api_url=API_URL,
+            api_token=API_TOKEN,
+            lookback_weeks=8,
+            min_weight=0.2,
+            hard=False,
+            priority=2
+        ),
         RecentlyMadeRule(),
         NoDuplicatesWithinDays(7, hard=False, priority=1, name="No Duplicates (7d)"),
         MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week"),
     ]
 
+    #  TODO: implement time rules... eg. we eat out on Wednesdays.
+    #  TODO: Expand to calendar parsed rules... eg. It looks like you will not be in for dinner on these days.
     plan = generate_meal_plan(recipes, days=7, rules=rules, meal_types=["dinner"])
     print("I would push here but i'm testing.")
     print(plan)

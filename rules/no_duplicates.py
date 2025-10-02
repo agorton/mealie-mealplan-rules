@@ -5,7 +5,6 @@ class NoDuplicatesWithinDays(Rule):
         super().__init__(**kwargs)
         self.days = days
 
-    def apply(self, plan, candidates):
+    def _apply(self, plan, candidates):
         recent_ids = {e["recipeId"] for e in plan[-self.days:]}
         return [c for c in candidates if c["id"] not in recent_ids]
-

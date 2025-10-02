@@ -10,5 +10,22 @@ class Rule:
         self.name = name or self.__class__.__name__
 
     def apply(self, plan, candidates):
-        """Return a filtered list of candidates"""
-        return candidates
+        """Wrap the subclass _apply with before/after logging."""
+        before = [r.get("name") for r in candidates]
+
+        after = self._apply(plan, candidates)  # subclass implements _apply
+
+        after_names = [r.get("name") for r in after]
+        removed = set(before) - set(after_names)
+        if removed:
+            print(f"[{self.name}] removed recipes: {removed}")
+        else:
+            print(f"[{self.name}] no recipes removed")
+
+        return after
+
+    def _apply(self, plan, candidates):
+        """
+        Subclasses should override this method instead of apply().
+        """
+        raise NotImplementedError

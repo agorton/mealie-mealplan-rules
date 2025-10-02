@@ -11,7 +11,7 @@ class RecentlyMadeRule(Rule):
         super().__init__(hard=hard, priority=priority, name=name)
         self.days = days
 
-    def apply(self, plan, candidates):
+    def _apply(self, plan, candidates):
         cutoff = datetime.now() - timedelta(days=self.days)
         filtered = []
 

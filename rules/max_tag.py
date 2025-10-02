@@ -6,8 +6,21 @@ class MaxTagPerWeek(Rule):
         self.tag = tag
         self.max_count = max_count
 
-    def apply(self, plan, candidates):
-        count = sum(1 for e in plan[-7:] if self.tag in e.get("tags", []))
+    def _apply(self, plan, candidates):
+        """
+        Filters out candidates with the tag if the tag has already appeared
+        max_count times in the last 7 plan entries.
+        """
+        # Count occurrences of the tag in last 7 plan entries
+        count = sum(
+            1 for e in plan[-7:]
+            if any(t.get("name") == self.tag for t in e.get("tags", []))
+        )
+
         if count >= self.max_count:
-            return [c for c in candidates if self.tag not in c.get("tags", [])]
+            # Remove candidates containing this tag
+            return [
+                c for c in candidates
+                if all(t.get("name") != self.tag for t in c.get("tags", []))
+            ]
         return candidates
