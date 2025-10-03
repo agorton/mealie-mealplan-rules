@@ -4,8 +4,9 @@ import datetime
 import logging
 
 from dotenv import load_dotenv
-from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule
+from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
 from selections import RandomSelection, NeglectSelection, SelectionStrategy
+from postselections import SkipDay
 
 load_dotenv()
 
@@ -74,9 +75,9 @@ def fetch_recipes():
         page += 1
     return recipes
 
-
-def generate_meal_plan(recipes, days=7, rules=None, meal_types=None,
-                       selection_strategy:SelectionStrategy=RandomSelection):
+def generate_meal_plan(recipes, post_selection_rules, days=7, rules=None, meal_types=None,
+                       selection_strategy:SelectionStrategy=RandomSelection,
+                       ):
     if meal_types is None:
         meal_types = ["breakfast", "lunch", "dinner"]
 
@@ -93,31 +94,38 @@ def generate_meal_plan(recipes, days=7, rules=None, meal_types=None,
             recipe = selection_strategy.select(candidates)
             plan.append({
                 "date": date.isoformat(),
-                "entryType": "recipe",
+                "entryType": meal_type,
                 "recipeId": recipe["id"],
                 "tags": recipe.get("tags", []),
-                "mealType": meal_type
             })
 
-            # Logging
-            recipe_name = recipe.get("name", recipe["id"])
-            flat_tags = [d["name"] for d in recipe.get("tags", [])]
+            log_chosen_recipe(recipe, relaxed, date, meal_type)
 
-            if relaxed:
-                logger.info(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)} (relaxed rules: {relaxed})")
-            else:
-                logger.info(f"{date} {meal_type}: picked '{recipe_name}' tags: {', '.join(flat_tags)}")
+    for post_selection_rule in post_selection_rules:
+        plan = post_selection_rule.apply(plan)
 
     return plan
 
+def log_chosen_recipe(recipe, relaxed=None, date=None, meal_type=None):
+    recipe_name = recipe.get("name", recipe["id"])
+    flat_tags = [d["name"] for d in recipe.get("tags", [])]
+    flat_tools = [d["name"] for d in recipe.get("tools", [])]
+
+    log = f"{date} {meal_type}: picked '{recipe_name}' tags: [{', '.join(flat_tags)}] tools: [{', '.join(flat_tools)}]"
+
+    if relaxed:
+        logger.info(log + f" (relaxed rules: {relaxed})")
+    else:
+        logger.info(log)
+
 def push_meal_plan(plan):
     for entry in plan:
-        payload = {
-            "date": entry["date"],
-            "entryType": "recipe",
-            "recipeId": entry["recipeId"]
+        payload =  {
+            k: entry[k]
+            for k in ("date", "entryType", "recipeId", "title", "text")
+            if k in entry and (k != "recipeId" or entry[k] is not None)
         }
-        resp = requests.post(f"{API_URL}/meal-plans/", headers=headers, json=payload)
+        resp = requests.post(f"{API_URL}/households/mealplans", headers=headers, json=payload)
         if resp.status_code not in (200, 201):
             logger.info("Failed:", resp.text)
 
@@ -133,23 +141,25 @@ def main():
     rules = [
         # Hard rules
         ExcludeTag("allergen-nuts", hard=True, name="No Nuts"),
-        ExcludeTag("dessert", hard=True, priority=2, name="No Dessert"),
-        ExcludeTag("side", hard=True, priority=2, name="No Sides"),
+        IncludeTag("dinner", hard=True, priority=2, name="Only Pick Dinners"),
 
         # Soft rules with priorities
+        WeekdayEasyRule(),
         RecentlyMadeRule(),
         NoDuplicatesWithinDays(7, hard=False, priority=1, name="No Duplicates (7d)"),
         MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week")
     ]
 
-    #  TODO: implement time-aware selection... eg. we eat out on Wednesdays.
-         #  TODO: Expand to calendar parsed rules... eg. It looks like you will not be in for dinner on these days.
+    post_selection_rules = [
+        SkipDay(day="Wednesday", reason="Eating at Perez's"),
+    ]
 
     plan = generate_meal_plan(recipes, days=7, rules=rules, meal_types=["dinner"],
-                              selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN))
-    # logger.info("I would push here but i'm testing."))
+                              selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN),
+                              post_selection_rules = post_selection_rules)
+    logger.info("I would push here but i'm testing.")
     logger.info(plan)
-    # push_meal_plan(plan)
+    push_meal_plan(plan)
     logger.info("Meal plan created.")
 
 if __name__ == "__main__":
