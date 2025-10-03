@@ -75,19 +75,18 @@ def fetch_recipes():
         page += 1
     return recipes
 
-def generate_meal_plan(recipes, post_selection_rules, days=7, rules=None, meal_types=None,
+def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.today(), days=7, rules=None, meal_types=None,
                        selection_strategy:SelectionStrategy=RandomSelection,
                        ):
     if meal_types is None:
         meal_types = ["breakfast", "lunch", "dinner"]
 
     plan = []
-    today = datetime.date.today()
 
     rules = rules or []
 
     for i in range(days):
-        date = today + datetime.timedelta(days=i)
+        date = start_date + datetime.timedelta(days=i)
 
         for meal_type in meal_types:
             candidates, relaxed = apply_rules_with_backoff(rules, plan, recipes, date, meal_type)
@@ -130,6 +129,14 @@ def push_meal_plan(plan):
             logger.info("Failed:", resp.text)
 
 
+def next_monday():
+    today = datetime.date.today()
+    days_ahead = 0 - today.weekday()  # how many days until Sunday
+    if days_ahead < 0:  # just in case, though weekday() never > 6
+        days_ahead += 7
+
+    return today + datetime.timedelta(days=days_ahead)
+
 # -------------------------------
 # Example usage
 # -------------------------------
@@ -154,10 +161,9 @@ def main():
         SkipDay(day="Wednesday", reason="Eating at Perez's"),
     ]
 
-    plan = generate_meal_plan(recipes, days=7, rules=rules, meal_types=["dinner"],
+    plan = generate_meal_plan(recipes, start_date=next_monday(), days=7, rules=rules, meal_types=["dinner"],
                               selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN),
                               post_selection_rules = post_selection_rules)
-    logger.info("I would push here but i'm testing.")
     logger.info(plan)
     push_meal_plan(plan)
     logger.info("Meal plan created.")
