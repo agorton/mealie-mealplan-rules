@@ -1,4 +1,4 @@
-# Create a default set of tags that we can use with organise-tags.py
+# Create a default set of tags that we can use with organise_tags.py
 # Really the organise tags should automatically try and create the tag first and then push it in, but that sounds hard.
 
 import os

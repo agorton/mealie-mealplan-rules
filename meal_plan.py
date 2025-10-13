@@ -85,6 +85,7 @@ def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.t
 
     rules = rules or []
 
+    logger.info(f"Initially planned meals (before post-selection rules):")
     for i in range(days):
         date = start_date + datetime.timedelta(days=i)
 
@@ -96,6 +97,7 @@ def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.t
                 "entryType": meal_type,
                 "recipeId": recipe["id"],
                 "tags": recipe.get("tags", []),
+                "name": recipe["name"],
             })
 
             log_chosen_recipe(recipe, relaxed, date, meal_type)
@@ -137,11 +139,7 @@ def next_monday():
 
     return today + datetime.timedelta(days=days_ahead)
 
-# -------------------------------
-# Example usage
-# -------------------------------
-
-def main():
+def plan_meals():
     recipes = fetch_recipes()
     logger.info(f"Fetched {len(recipes)} recipes")
 
@@ -167,6 +165,7 @@ def main():
     logger.info(plan)
     push_meal_plan(plan)
     logger.info("Meal plan created.")
+    return plan
 
 if __name__ == "__main__":
-    main()
+    plan_meals()
