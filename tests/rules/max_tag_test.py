@@ -15,7 +15,8 @@ def test_max_tag_per_week_rule():
 
     # Sample candidates
     candidates = [
-        {"name": "Salad", "tags": [{"name": "vegetarian"}]},
+        {"name": "Salad", "tags": [{"name": "Vegetarian"}]},
+        {"name": "Salad2", "tags": [{"name": "vegetarian"}]},
         {"name": "Steak", "tags": [{"name": "meat"}]},
         {"name": "Soup", "tags": [{"name": "starter"}]},
     ]

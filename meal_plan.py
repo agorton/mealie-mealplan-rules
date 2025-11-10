@@ -152,7 +152,8 @@ def plan_meals(dry_run=False):
         WeekdayEasyRule(),
         RecentlyMadeRule(),
         NoDuplicatesWithinDays(7, hard=False, priority=1, name="No Duplicates (7d)"),
-        MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week")
+        MaxTagPerWeek("chicken", max_count=2, hard=False, priority=3, name="Max 2 Chicken/Week"),
+        MaxTagPerWeek("indian", max_count=1, hard=False, priority=3, name="Max 1 Indian/Week")
     ]
 
     post_selection_rules = [

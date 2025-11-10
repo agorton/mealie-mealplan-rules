@@ -3,7 +3,7 @@ from .base import Rule
 class MaxTagPerWeek(Rule):
     def __init__(self, tag, max_count=1, **kwargs):
         super().__init__(**kwargs)
-        self.tag = tag
+        self.tag = tag.casefold()
         self.max_count = max_count
 
     def _apply(self, plan, candidates):
@@ -14,13 +14,13 @@ class MaxTagPerWeek(Rule):
         # Count occurrences of the tag in last 7 plan entries
         count = sum(
             1 for e in plan[-7:]
-            if any(t.get("name") == self.tag for t in e.get("tags", []))
+            if any(t.get("name").casefold() == self.tag for t in e.get("tags", []))
         )
 
         if count >= self.max_count:
             # Remove candidates containing this tag
             return [
                 c for c in candidates
-                if all(t.get("name") != self.tag for t in c.get("tags", []))
+                if all(t.get("name").casefold() != self.tag for t in c.get("tags", []))
             ]
         return candidates
