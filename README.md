@@ -111,3 +111,14 @@ You can extend or modify:
 * **Authentication / API failures**: ensure your Mealie API token is valid and has correct permissions.
 
 ---
+
+## Murmurings
+
+There are 3 stages, Rule Filtering, Selection and Post-Selection Rules.
+- Rule filtering depends on the selected meals already eg. No more than 1 Chicken meal per week.
+- Selection calculates the weights of every meal after filtering to determine the most appropriate meal to pick.
+- Post-Selection applies after all selections are done. eg. Swap out Wednesday's meal with a Note because we eat out then.
+
+Issues
+- Rule filtering depends on the selected meals already meaning it needs to rerun every day and be updated with selections.
+- Selection currently runs every day also, re-calculating the weights of each meal each iteration which could be wasteful.

@@ -33,3 +33,6 @@ class SkipDay(PostSelectionRule):
                 "text": "",
             }
         return plan
+
+    def get_day_index(self):
+        return DAY_NAME_TO_INDEX[self.day.strip().lower()]

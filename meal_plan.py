@@ -85,8 +85,13 @@ def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.t
 
     rules = rules or []
 
-    logger.info(f"Initially planned meals (before post-selection rules):")
+    skip_day_rules = [rule.get_day_index() for rule in post_selection_rules if rule.__class__ == SkipDay]
+
     for i in range(days):
+        if skip_day_rules.__contains__(i):
+            logger.info(f"Skipping day because of PostSelection SkipDay rule")
+            continue
+
         date = start_date + datetime.timedelta(days=i)
 
         for meal_type in meal_types:
