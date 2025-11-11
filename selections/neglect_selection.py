@@ -25,6 +25,23 @@ class NeglectSelection(SelectionStrategy):
         self.lookback_weeks = lookback_weeks
         self.min_weight = min_weight
 
+    def _get_meal_plans(self, recipe_name):
+        url = f"{self.api_url}/households/mealplans"
+        cutoff_date = datetime.now(timezone.utc) - timedelta(weeks=self.lookback_weeks)
+        filter_str = f'recipe.name="{recipe_name}"'
+        params = {
+            "orderDirection": "desc",
+            "queryFilter": filter_str,
+            "page": 1,
+            "perPage": 50,
+            "start_date": cutoff_date.date(),
+        }
+
+        resp = requests.get(url, headers=self.headers, params=params)
+        resp.raise_for_status()
+        planned_events = resp.json().get("items", [])
+        return planned_events
+
     def _get_timeline_events(self, recipe_name):
         """
         Query the Mealie API for timeline events for a recipe.
@@ -58,7 +75,7 @@ class NeglectSelection(SelectionStrategy):
                 continue
             if event_date < cutoff_date:
                 continue
-            made = e.get("made", False)  # True if the recipe was actually cooked
+            made = not e.get("subject").__contains__("Created".casefold())
             recent_events.append({"made": made})
         return recent_events
 
@@ -68,11 +85,13 @@ class NeglectSelection(SelectionStrategy):
         reduce weight toward min_weight.
         """
         events = self._get_timeline_events(recipe["name"])
+        planned_events = self._get_meal_plans(recipe["name"])
+
         if not events:
             return 1.0  # never planned → full weight
 
-        planned_count = len(events)
-        made_count = sum(1 for e in events if e["made"])
+        made_count = len(events)
+        planned_count = len(planned_events)
 
         neglect_count = planned_count - made_count
         if planned_count == 0 or neglect_count <= 0:
