@@ -144,7 +144,7 @@ def next_monday():
 
     return today + datetime.timedelta(days=days_ahead)
 
-def plan_meals(dry_run=False):
+def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
     recipes = fetch_recipes()
     logger.info(f"Fetched {len(recipes)} recipes")
 
@@ -169,8 +169,10 @@ def plan_meals(dry_run=False):
                               selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN),
                               post_selection_rules = post_selection_rules)
     logger.info(plan)
-    if not dry_run:
+    if not dry_run == "True":
         push_meal_plan(plan)
+    else:
+        logger.info("Dry Run. Not Pushing")
     logger.info("Meal plan created.")
     return plan
 
