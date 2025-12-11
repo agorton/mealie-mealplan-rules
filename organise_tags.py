@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
-import classifications
+from classifications import Classifications
 
 # ==============================
 # CONFIGURATION
@@ -38,10 +38,10 @@ headers = {"Authorization": f"Bearer {MEALIE_TOKEN}"}
 PROMPT_SYSTEM = f"""
 You are a recipe classifier. 
 Given a recipe's name, ingredients, and instructions, classify it into:
-- Cuisine: one of {classifications.CUISINES}
-- Main carb: one of {classifications.CARBS}
-- Main protein: one or many of {classifications.PROTEINS}
-- Meal time: one of {classifications.MEALTIME}
+- Cuisine: one of {Classifications.CUISINES}
+- Main carb: one of {Classifications.CARBS}
+- Main protein: one or many of {Classifications.PROTEINS}
+- Meal time: one of {Classifications.MEALTIME}
 
 Always return JSON in this format:
 {{

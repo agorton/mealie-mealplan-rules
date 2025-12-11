@@ -3,7 +3,7 @@
 
 import os
 import requests
-import classifications
+from classifications import Classifications
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -28,8 +28,8 @@ def create_tag(name: str):
         print(f"❌ Failed to create tag {name}: {response.text}")
 
 def main():
-    all_tags = (classifications.CUISINES + classifications.CARBS +
-                classifications.PROTEINS + classifications.MEALTIME)
+    all_tags = (Classifications.CUISINES + Classifications.CARBS +
+                Classifications.PROTEINS + Classifications.MEALTIME)
 
     for tag in all_tags:
         if tag != "None":
