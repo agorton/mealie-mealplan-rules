@@ -1,4 +1,7 @@
+import logging
 import os
+from datetime import datetime
+
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -9,6 +12,13 @@ import classifications
 # ==============================
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 MEALIE_URL = os.getenv("MEALIE_SERVER") + "/api"
 MEALIE_TOKEN = os.getenv("MEALIE_TOKEN")
@@ -63,8 +73,8 @@ def fetch_tags():
         page += 1
     return tags
 
-def fetch_recipes():
-    url = f"{MEALIE_URL}/recipes?perPage=100"
+def fetch_recipes_since_first_of_month():
+    url = f"{MEALIE_URL}/recipes?queryFilter=createdAt>=\"{datetime.today().replace(day=1)}\""
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json()["items"]  # Mealie paginates results
@@ -89,8 +99,8 @@ def classify_recipe(recipe):
         content = response.choices[0].message.content.strip()
         return eval(content)  # AI returns JSON string, convert to dict
     except Exception as e:
-        print(f"Failed to parse AI output for {recipe['name']}: {e}")
-        print("Raw output:", response.choices[0].message.content)
+        logger.info(f"Failed to parse AI output for {recipe['name']}: {e}")
+        logger.info("Raw output:", response.choices[0].message.content)
         return None
 
 def bulk_update_recipe_tags(recipe_slug, new_tag_names, tag_lookup):
@@ -103,10 +113,10 @@ def bulk_update_recipe_tags(recipe_slug, new_tag_names, tag_lookup):
         if tag:
             tag_objects.append(tag)
         else:
-            print(f"⚠️ Tag '{name}' not found in Mealie — skipping")
+            logger.info(f"⚠️ Tag '{name}' not found in Mealie — skipping")
 
     if not tag_objects:
-        print("⚠️ No valid tags to apply")
+        logger.info("⚠️ No valid tags to apply")
         return
 
     url = f"{MEALIE_URL}/recipes/bulk-actions/tag"
@@ -116,9 +126,9 @@ def bulk_update_recipe_tags(recipe_slug, new_tag_names, tag_lookup):
     }
     r = requests.post(url, headers=headers, json=payload)
     if r.status_code == 200:
-        print(f"✅ Updated recipe '{recipe_slug}' with tags {[t['name'] for t in tag_objects]}")
+        logger.info(f"✅ Updated recipe '{recipe_slug}' with tags {[t['name'] for t in tag_objects]}")
     else:
-        print(f"❌ Failed to update recipe '{recipe_slug}': {r.text}")
+        logger.info(f"❌ Failed to update recipe '{recipe_slug}': {r.text}")
 
 def flatten(lst):
     for item in lst:
@@ -129,26 +139,31 @@ def flatten(lst):
 # ==============================
 # MAIN WORKFLOW
 # ==============================
-
-def main():
-    print("🔍 Fetching tag list from Mealie...")
+def tag_recipes(dry_run=os.getenv("DRY_RUN", True)):
+    logger.info("🔍 Fetching tag list from Mealie...")
     tag_lookup = fetch_tags()
 
-    recipes = fetch_recipes()
+    recipes = fetch_recipes_since_first_of_month()
     for recipe in recipes:
         if not recipe:
-            print("No recipes found in Mealie.")
+            logger.info("No recipes found in Mealie.")
             return
 
-        print(f"Classifying recipe: {recipe['name']} (slug {recipe['slug']})")
+        logger.info(f"Classifying recipe: {recipe['name']} (slug {recipe['slug']})")
         classification = classify_recipe(recipe)
         if classification:
             tags = [classification["cuisine"], classification["main_carb"],
                     *flatten(classification["main_protein"]), classification["meal_time"]]
-            print(f"AI suggests tags: {tags}")
-            bulk_update_recipe_tags(recipe["slug"], tags, tag_lookup)
+            logger.info(f"AI suggests tags: {tags}")
+            if not dry_run == "True":
+                bulk_update_recipe_tags(recipe["slug"], tags, tag_lookup)
+            else:
+                logger.info("Dry Run. Not Pushing Tags")
         else:
-            print("Classification failed.")
+            logger.info("Classification failed.")
+
+def main():
+    tag_recipes()
 
 if __name__ == "__main__":
     main()

@@ -23,7 +23,7 @@ class Rule:
         after_names = [r.get("name") for r in after]
         removed = set(before) - set(after_names)
         if removed:
-            logger.debug(f"[{self.name}] removed recipes: {removed}")
+            logger.debug(f"[{self.name}] removed {len(removed)} recipes: {removed}")
         else:
             logger.debug(f"[{self.name}] no recipes removed")
 
