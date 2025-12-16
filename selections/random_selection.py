@@ -1,6 +1,6 @@
 import random
 
-from selections import SelectionStrategy
+from .selection_strategy import SelectionStrategy
 
 class RandomSelection(SelectionStrategy):
     def select(self, candidates, n=1):

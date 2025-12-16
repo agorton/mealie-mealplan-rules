@@ -3,7 +3,7 @@
 
 import os
 import requests
-from classifications import Classifications
+from .classifications import Classifications
 from dotenv import load_dotenv
 
 load_dotenv()

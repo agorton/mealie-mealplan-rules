@@ -5,7 +5,7 @@ from datetime import datetime
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
-from classifications import Classifications
+from .classifications import Classifications
 
 # ==============================
 # CONFIGURATION

@@ -5,9 +5,9 @@ import logging
 from datetime import timezone, timedelta
 
 from dotenv import load_dotenv
-from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
-from selections import RandomSelection, NeglectSelection, SelectionStrategy
-from postselections import SkipDay
+from .rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
+from .selections import RandomSelection, NeglectSelection, SelectionStrategy
+from .postselections import SkipDay
 
 load_dotenv()
 
@@ -179,6 +179,31 @@ def log_chosen_recipe(recipe, relaxed=None, date=None, meal_type=None):
     else:
         logger.info(log)
 
+def delete_meal_plans_for_date_range(start_date: datetime.date, end_date: datetime.date):
+    """Delete all meal plans within the specified date range."""
+    logger.info(f"Deleting existing meal plans for date range {start_date} to {end_date}")
+    url = f"{API_URL}/households/mealplans?start_date={start_date}&end_date={end_date}"
+    resp = requests.get(url, headers=headers)
+    if resp.status_code != 200:
+        logger.warning(f"Failed to fetch meal plans for deletion: {resp.text}")
+        return
+    
+    items = resp.json().get("items", [])
+    deleted_count = 0
+    
+    for entry in items:
+        meal_id = entry.get("id")
+        if meal_id:
+            delete_url = f"{API_URL}/households/mealplans/{meal_id}"
+            delete_resp = requests.delete(delete_url, headers=headers)
+            if delete_resp.status_code in (200, 204):
+                deleted_count += 1
+                logger.info(f"Deleted meal plan entry {meal_id} for {entry.get('date')}")
+            else:
+                logger.warning(f"Failed to delete meal plan entry {meal_id}: {delete_resp.text}")
+    
+    logger.info(f"Deleted {deleted_count} meal plan entries")
+
 def push_meal_plan(plan):
     for entry in plan:
         payload =  {
@@ -199,7 +224,7 @@ def next_monday():
 
     return today + datetime.timedelta(days=days_ahead)
 
-def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
+def plan_meals(dry_run=os.getenv("DRY_RUN", True), replacePlan=False):
     recipes = fetch_recipes()
     logger.info(f"Fetched {len(recipes)} recipes")
 
@@ -227,7 +252,11 @@ def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
     timeline_events_by_recipe = fetch_timeline_events_for_recipes(recipes, lookback_weeks)
     logger.info("Finished fetching meal plans and timeline events")
 
-    plan = generate_meal_plan(recipes, start_date=next_monday(), days=7, rules=rules, meal_types=["dinner"],
+    start_date = next_monday()
+    days = 7
+    end_date = start_date + datetime.timedelta(days=days - 1)
+    
+    plan = generate_meal_plan(recipes, start_date=start_date, days=days, rules=rules, meal_types=["dinner"],
                               selection_strategy=NeglectSelection(
                                   meal_plans_by_recipe=meal_plans_by_recipe,
                                   timeline_events_by_recipe=timeline_events_by_recipe,
@@ -236,6 +265,9 @@ def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
                               post_selection_rules = post_selection_rules)
     logger.info(plan)
     if not dry_run == "True":
+        # Delete existing meal plans for the date range before pushing new ones if replacePlan is True
+        if replacePlan:
+            delete_meal_plans_for_date_range(start_date, end_date)
         push_meal_plan(plan)
     else:
         logger.info("Dry Run. Not Pushing")
