@@ -2,6 +2,7 @@ import os
 import requests
 import datetime
 import logging
+from datetime import timezone, timedelta
 
 from dotenv import load_dotenv
 from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
@@ -74,6 +75,60 @@ def fetch_recipes():
             break
         page += 1
     return recipes
+
+def fetch_meal_plans_for_recipes(recipes, lookback_weeks=8):
+    """
+    Fetch meal plans for all recipes.
+    Returns a dict mapping recipe names to lists of meal plan events.
+    """
+    meal_plans_by_recipe = {}
+    cutoff_date = datetime.datetime.now(timezone.utc) - timedelta(weeks=lookback_weeks)
+    url = f"{API_URL}/households/mealplans"
+    
+    for recipe in recipes:
+        recipe_name = recipe["name"]
+        filter_str = f'recipe.name="{recipe_name}"'
+        params = {
+            "orderDirection": "desc",
+            "queryFilter": filter_str,
+            "page": 1,
+            "perPage": 50,
+            "start_date": cutoff_date.date(),
+        }
+        
+        resp = requests.get(url, headers=headers, params=params)
+        resp.raise_for_status()
+        planned_events = resp.json().get("items", [])
+        meal_plans_by_recipe[recipe_name] = planned_events
+    
+    return meal_plans_by_recipe
+
+def fetch_timeline_events_for_recipes(recipes, lookback_weeks=8):
+    """
+    Fetch timeline events for all recipes.
+    Returns a dict mapping recipe names to lists of timeline events with "made" field.
+    """
+    timeline_events_by_recipe = {}
+    cutoff_date = datetime.datetime.now(timezone.utc) - timedelta(weeks=lookback_weeks)
+    url = f"{API_URL}/recipes/timeline/events"
+    
+    for recipe in recipes:
+        recipe_name = recipe["name"]
+        filter_str = f'recipe.name="{recipe_name}" AND eventType = "comment" AND createdAt > "{cutoff_date.isoformat()}"'
+        params = {
+            "orderDirection": "desc",
+            "queryFilter": filter_str,
+            "page": 1,
+            "perPage": 50
+        }
+        
+        resp = requests.get(url, headers=headers, params=params)
+        resp.raise_for_status()
+        events = resp.json().get("items", [])
+
+        timeline_events_by_recipe[recipe_name] = events
+    
+    return timeline_events_by_recipe
 
 def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.today(), days=7, rules=None, meal_types=None,
                        selection_strategy:SelectionStrategy=RandomSelection,
@@ -165,8 +220,19 @@ def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
         SkipDay(day="Wednesday", reason="Eating at Perez's"),
     ]
 
+    # Fetch data for NeglectSelection
+    lookback_weeks = 1000
+    logger.info("Fetching meal plans and timeline events for neglect selection...")
+    meal_plans_by_recipe = fetch_meal_plans_for_recipes(recipes, lookback_weeks)
+    timeline_events_by_recipe = fetch_timeline_events_for_recipes(recipes, lookback_weeks)
+    logger.info("Finished fetching meal plans and timeline events")
+
     plan = generate_meal_plan(recipes, start_date=next_monday(), days=7, rules=rules, meal_types=["dinner"],
-                              selection_strategy=NeglectSelection(api_url=API_URL, api_token=API_TOKEN),
+                              selection_strategy=NeglectSelection(
+                                  meal_plans_by_recipe=meal_plans_by_recipe,
+                                  timeline_events_by_recipe=timeline_events_by_recipe,
+                                  lookback_weeks=lookback_weeks
+                              ),
                               post_selection_rules = post_selection_rules)
     logger.info(plan)
     if not dry_run == "True":

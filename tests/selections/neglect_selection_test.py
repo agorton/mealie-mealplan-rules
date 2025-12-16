@@ -1,29 +1,32 @@
 import pytest
 from selections.neglect_selection import NeglectSelection
 
-#  TODO: make this simpler. Load the full timeline to a date, Load the mealplans to a date and pass them in, instead of calling the API in the rule.
-@pytest.mark.skip(reason="trying to make an actual call.")
-def test_calculate_weight(monkeypatch):
+def test_calculate_weight():
     # Fake recipe candidates
     pizza = {"name": "Pizza"}
     salad = {"name": "Salad"}
     soup = {"name": "Soup"}
 
-    # Instantiate strategy (API details are irrelevant, we'll monkeypatch)
-    strategy = NeglectSelection(api_url="http://fake", api_token="fake", lookback_weeks=4, min_weight=0.1)
+    # Prepare pre-fetched data
+    meal_plans_by_recipe = {
+        "Pizza": [{"id": 1}, {"id": 2}, {"id": 3}],  # Planned 3 times
+        "Salad": [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}],  # Planned 5 times
+        "Soup": []  # Never planned
+    }
+    
+    timeline_events_by_recipe = {
+        "Pizza": [],  # made 0 → heavily neglected
+        "Salad": [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}],  # Planned 5 times, made 5 → fully liked
+        "Soup": []
+    }
 
-    # Mock _get_timeline_events to simulate planned vs made
-    def fake_get_events(recipe):
-        if recipe == "Pizza":
-            # Planned 3 times, made 0 → heavily neglected
-            return [{"made": False}, {"made": False}, {"made": False}]
-        if recipe == "Salad":
-            # Planned 5 times, made 5 → fully liked
-            return [{"made": True}] * 5
-        if recipe == "Soup":
-            # Never planned
-            return []
-    monkeypatch.setattr(strategy, "_get_timeline_events", lambda r: fake_get_events(r))
+    # Instantiate strategy with pre-fetched data
+    strategy = NeglectSelection(
+        meal_plans_by_recipe=meal_plans_by_recipe,
+        timeline_events_by_recipe=timeline_events_by_recipe,
+        lookback_weeks=4,
+        min_weight=0.1
+    )
 
     # Test weight calculations
     pizza_weight = strategy.calculate_weight(pizza)
@@ -40,7 +43,13 @@ def test_select(monkeypatch):
         {"name": "Pizza"},
         {"name": "Salad"},
     ]
-    strategy = NeglectSelection(api_url="http://fake", api_token="fake", min_weight=0.1)
+    
+    # Instantiate with empty data since we're mocking calculate_weight
+    strategy = NeglectSelection(
+        meal_plans_by_recipe={},
+        timeline_events_by_recipe={},
+        min_weight=0.1
+    )
 
     # Mock calculate_weight to fixed values
     weights = {"Pizza": 0.1, "Salad": 1.0}
