@@ -5,9 +5,9 @@ import logging
 from datetime import timezone, timedelta
 
 from dotenv import load_dotenv
-from rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
-from selections import RandomSelection, NeglectSelection, SelectionStrategy
-from postselections import SkipDay
+from .rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
+from .selections import RandomSelection, NeglectSelection, SelectionStrategy
+from .postselections import SkipDay
 
 load_dotenv()
 
@@ -18,8 +18,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-logging.getLogger("rules").setLevel(os.getenv("LOG_LEVEL"),)
-logging.getLogger("selections").setLevel(os.getenv("LOG_LEVEL"))
+logging.getLogger("rules").setLevel(os.getenv("LOG_LEVEL", "INFO"))
+logging.getLogger("selections").setLevel(os.getenv("LOG_LEVEL", "INFO"))
 
 API_URL = os.getenv("MEALIE_SERVER") + "/api"
 API_TOKEN =  os.getenv("MEALIE_TOKEN")
