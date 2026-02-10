@@ -1,13 +1,16 @@
 import os
-import requests
 import datetime
 import logging
+import requests
 from datetime import timezone, timedelta
 
 from dotenv import load_dotenv
 from .rules import ExcludeTag, MaxTagPerWeek, NoDuplicatesWithinDays, RecentlyMadeRule, WeekdayEasyRule, IncludeTag
 from .selections import RandomSelection, NeglectSelection, SelectionStrategy
 from .postselections import SkipDay
+
+# Import the MealieApiService from the main services package
+from services.mealie_api_service import MealieApiService
 
 load_dotenv()
 
@@ -20,14 +23,6 @@ logging.basicConfig(
 
 logging.getLogger("rules").setLevel(os.getenv("LOG_LEVEL", "INFO"))
 logging.getLogger("selections").setLevel(os.getenv("LOG_LEVEL", "INFO"))
-
-API_URL = os.getenv("MEALIE_SERVER") + "/api"
-API_TOKEN =  os.getenv("MEALIE_TOKEN")
-
-headers = {
-    "Authorization": f"Bearer {API_TOKEN}",
-    "Content-Type": "application/json"
-}
 
 def apply_rules_with_backoff(rules, plan, candidates, date, meal_type):
     """Apply rules, relaxing soft ones if needed. Returns candidates and relaxed rules."""
@@ -62,73 +57,6 @@ def apply_rules_with_backoff(rules, plan, candidates, date, meal_type):
 # Core planner
 # -------------------------------
 
-def fetch_recipes():
-    recipes = []
-    url = f"{API_URL}/recipes"
-    page = 1
-    while True:
-        resp = requests.get(url, headers=headers, params={"page": page, "perPage": 50})
-        resp.raise_for_status()
-        data = resp.json()
-        recipes.extend(data["items"])
-        if not data["items"]:
-            break
-        page += 1
-    return recipes
-
-def fetch_meal_plans_for_recipes(recipes, lookback_weeks=8):
-    """
-    Fetch meal plans for all recipes.
-    Returns a dict mapping recipe names to lists of meal plan events.
-    """
-    meal_plans_by_recipe = {}
-    cutoff_date = datetime.datetime.now(timezone.utc) - timedelta(weeks=lookback_weeks)
-    url = f"{API_URL}/households/mealplans"
-    
-    for recipe in recipes:
-        recipe_name = recipe["name"]
-        filter_str = f'recipe.name="{recipe_name}"'
-        params = {
-            "orderDirection": "desc",
-            "queryFilter": filter_str,
-            "page": 1,
-            "perPage": 50,
-            "start_date": cutoff_date.date(),
-        }
-        
-        resp = requests.get(url, headers=headers, params=params)
-        resp.raise_for_status()
-        planned_events = resp.json().get("items", [])
-        meal_plans_by_recipe[recipe_name] = planned_events
-    
-    return meal_plans_by_recipe
-
-def fetch_timeline_events_for_recipes(recipes, lookback_weeks=8):
-    """
-    Fetch timeline events for all recipes.
-    Returns a dict mapping recipe names to lists of timeline events with "made" field.
-    """
-    timeline_events_by_recipe = {}
-    cutoff_date = datetime.datetime.now(timezone.utc) - timedelta(weeks=lookback_weeks)
-    url = f"{API_URL}/recipes/timeline/events"
-    
-    for recipe in recipes:
-        recipe_name = recipe["name"]
-        filter_str = f'recipe.name="{recipe_name}" AND eventType = "comment" AND createdAt > "{cutoff_date.isoformat()}"'
-        params = {
-            "orderDirection": "desc",
-            "queryFilter": filter_str,
-            "page": 1,
-            "perPage": 50
-        }
-        
-        resp = requests.get(url, headers=headers, params=params)
-        resp.raise_for_status()
-        events = resp.json().get("items", [])
-
-        timeline_events_by_recipe[recipe_name] = events
-    
-    return timeline_events_by_recipe
 
 def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.today(), days=7, rules=None, meal_types=None,
                        selection_strategy:SelectionStrategy=RandomSelection,
@@ -140,13 +68,7 @@ def generate_meal_plan(recipes, post_selection_rules, start_date=datetime.date.t
 
     rules = rules or []
 
-    skip_day_rules = [rule.get_day_index() for rule in post_selection_rules if rule.__class__ == SkipDay]
-
     for i in range(days):
-        if skip_day_rules.__contains__(i):
-            logger.info(f"Skipping day because of PostSelection SkipDay rule")
-            continue
-
         date = start_date + datetime.timedelta(days=i)
 
         for meal_type in meal_types:
@@ -179,14 +101,23 @@ def log_chosen_recipe(recipe, relaxed=None, date=None, meal_type=None):
     else:
         logger.info(log)
 
-def push_meal_plan(plan):
+def push_meal_plan(plan, mealie_service: MealieApiService):
+    """Push meal plan to Mealie using the provided service.
+    
+    Args:
+        plan: The meal plan to push
+        mealie_service: MealieApiService instance for API interactions
+    """
     for entry in plan:
         payload =  {
             k: entry[k]
             for k in ("date", "entryType", "recipeId", "title", "text")
             if k in entry and (k != "recipeId" or entry[k] is not None)
         }
-        resp = requests.post(f"{API_URL}/households/mealplans", headers=headers, json=payload)
+        url = f"{mealie_service.mealie_url}/api/households/mealplans"
+        headers = mealie_service._auth_headers()
+        
+        resp = requests.post(url, headers=headers, json=payload)
         if resp.status_code not in (200, 201):
             logger.info("Failed:", resp.text)
 
@@ -199,8 +130,32 @@ def next_monday():
 
     return today + datetime.timedelta(days=days_ahead)
 
-def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
-    recipes = fetch_recipes()
+def plan_meals(mealie_service: MealieApiService = None, dry_run=os.getenv("DRY_RUN", True)):
+    """
+    Generate a meal plan using the provided Mealie service.
+    
+    Args:
+        mealie_service: MealieApiService instance for API interactions
+        dry_run: Whether to skip pushing the plan to Mealie
+    
+    Returns:
+        Generated meal plan
+    """
+    # Use existing service or create a fallback (for backward compatibility)
+    if mealie_service is None:
+        # For backward compatibility, create a service from environment variables
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        mealie_url = os.getenv("MEALIE_SERVER")
+        mealie_token = os.getenv("MEALIE_TOKEN")
+        if mealie_url and mealie_token:
+            mealie_service = MealieApiService(mealie_url, mealie_token)
+        else:
+            raise ValueError("Mealie service not provided and environment variables not available")
+    
+    recipes = mealie_service.get_all_recipes()
     logger.info(f"Fetched {len(recipes)} recipes")
 
     rules = [
@@ -217,14 +172,14 @@ def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
     ]
 
     post_selection_rules = [
-        SkipDay(day="Wednesday", reason="Eating at Perez's"),
+        SkipDay(day="Thursday", reason="Leftovers"),
     ]
 
     # Fetch data for NeglectSelection
     lookback_weeks = 1000
     logger.info("Fetching meal plans and timeline events for neglect selection...")
-    meal_plans_by_recipe = fetch_meal_plans_for_recipes(recipes, lookback_weeks)
-    timeline_events_by_recipe = fetch_timeline_events_for_recipes(recipes, lookback_weeks)
+    meal_plans_by_recipe = mealie_service.get_meal_plans_for_recipes(recipes, lookback_weeks)
+    timeline_events_by_recipe = mealie_service.get_timeline_events_for_recipes(recipes, lookback_weeks)
     logger.info("Finished fetching meal plans and timeline events")
 
     plan = generate_meal_plan(recipes, start_date=next_monday(), days=7, rules=rules, meal_types=["dinner"],
@@ -236,7 +191,7 @@ def plan_meals(dry_run=os.getenv("DRY_RUN", True)):
                               post_selection_rules = post_selection_rules)
     logger.info(plan)
     if not dry_run == "True":
-        push_meal_plan(plan)
+        push_meal_plan(plan, mealie_service)
     else:
         logger.info("Dry Run. Not Pushing")
     logger.info("Meal plan created.")
