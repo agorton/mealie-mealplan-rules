@@ -1,20 +1,25 @@
 from .base import Rule
+from pytimeparse.timeparse import timeparse
 
+def time_to_minutes(text:str) -> float:
+    if text is int:
+        return 0
+    seconds = timeparse(text)
+    if seconds is None:
+        return 0
+    return seconds / 60
 
 def compute_effort(recipe):
     # Basic example
-    prep_time = recipe.get("prep_time_minutes", 0)
-    cook_time = recipe.get("cook_time_minutes", 0)
-    steps = len(recipe.get("steps", []))
+    total_time = time_to_minutes(recipe.get("totalTime", 0))
+    steps = len(recipe.get("recipeInstructions", []))
 
     # Reduce effort if slow cooker or instant pot
     tool_bonus = 0
     if "slow_cooker" in recipe.get("tools", []):
         tool_bonus -= 2
-    if "instant_pot" in recipe.get("tools", []):
-        tool_bonus -= 1
 
-    score = (prep_time / 10) + (cook_time / 60) + steps + tool_bonus
+    score = (total_time / 60) + steps + tool_bonus
     return max(score, 0)  # Ensure non-negative
 
 
